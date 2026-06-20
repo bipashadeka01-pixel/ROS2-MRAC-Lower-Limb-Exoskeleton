@@ -1,0 +1,19 @@
+# ROS2 / colcon generated folders
+build/
+install/
+log/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VS Code local settings
+.vscode/
+
+# OS files
+.DS_Store
+
+# Large recording files
+*.bag
+*.db3
+*.mcap

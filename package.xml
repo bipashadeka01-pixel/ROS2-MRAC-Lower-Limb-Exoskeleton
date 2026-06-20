@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>adaptive_controller</name>
+  <version>0.0.1</version>
+  <description>MRAC adaptive gait controller for lower-limb exoskeleton (ROS2 Jazzy).</description>
+
+  <maintainer email="bipashadeka01@gmail.com">Bipasha Deka</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Runtime node dependencies -->
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <!-- Visualisation stack -->
+  <depend>robot_state_publisher</depend>
+  <depend>rviz2</depend>
+  <depend>xacro</depend>
+
+  <!--
+    FIX: joint_state_publisher_gui was missing.
+    Without it the launch file can't find the executable and, more
+    importantly, no node publishes /joint_states → robot_state_publisher
+    can't build the TF tree → every link frame is missing → no meshes in RViz.
+  -->
+  <depend>joint_state_publisher</depend>
+  <depend>joint_state_publisher_gui</depend>
+
+  <!-- Eigen (header-only, but declaring it makes rosdep happy) -->
+  <build_depend>libeigen3-dev</build_depend>
+  <exec_depend>libeigen3-dev</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

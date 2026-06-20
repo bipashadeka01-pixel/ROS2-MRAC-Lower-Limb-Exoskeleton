@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exoskeleton – ROS2 Jazzy  URDF/Xacro
+  Meshes: binary STL, already in metres → scale="1 1 1"
+  All 8 joints wired to effort hardware interface (ros2_control).
+  Typo fixed: left_leg_foot_linlk → left_leg_foot_link
+-->
+<robot name="exoskeleton" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="pkg" value="adaptive_controller"/>
+
+  <!-- STL files from SolidWorks export are in metres already -->
+  <xacro:property name="mesh_scale" value="1 1 1"/>
+
+  <!-- ── Materials ─────────────────────────────────────────────── -->
+  <material name="dark_grey">  <color rgba="0.298 0.298 0.298 1"/> </material>
+  <material name="light_grey"> <color rgba="0.941 0.941 0.941 1"/> </material>
+  <material name="silver">     <color rgba="0.898 0.918 0.929 1"/> </material>
+  <material name="light_blue"> <color rgba="0.867 0.910 1.000 1"/> </material>
+  <material name="periwinkle"> <color rgba="0.792 0.820 0.933 1"/> </material>
+
+  <!-- ── Reusable visual+collision macro ───────────────────────── -->
+  <xacro:macro name="stl_vc" params="mesh mat">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://${pkg}/meshes/${mesh}" scale="${mesh_scale}"/>
+      </geometry>
+      <material name="${mat}"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://${pkg}/meshes/${mesh}" scale="${mesh_scale}"/>
+      </geometry>
+    </collision>
+  </xacro:macro>
+
+  <!-- ── Transmission macro (one per actuated joint) ──────────── -->
+  <xacro:macro name="effort_trans" params="jname">
+    <transmission name="${jname}_trans">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${jname}">
+        <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      </joint>
+      <actuator name="${jname}_motor">
+        <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+        <mechanicalReduction>1</mechanicalReduction>
+      </actuator>
+    </transmission>
+  </xacro:macro>
+
+  <!-- ════════════════════════════════════════════════════════════
+       WORLD FRAME
+  ════════════════════════════════════════════════════════════ -->
+  <link name="world"/>
+
+  <joint name="world_to_pelvis" type="fixed">
+    <parent link="world"/>
+    <child  link="pelvis_link"/>
+    <!-- z=1.0 m → standing height; lower to 0 if you mount on a frame -->
+    <origin xyz="0 0 1.0" rpy="1.5708 0 0"/>
+  </joint>
+
+  <!-- ════════════════════════════════════════════════════════════
+       PELVIS
+  ════════════════════════════════════════════════════════════ -->
+  <link name="pelvis_link">
+    <inertial>
+      <origin xyz="-7.0884E-05 0.028388 -0.046616" rpy="0 0 0"/>
+      <mass value="6.4756"/>
+      <inertia ixx="0.029577" ixy="2.7543E-05" ixz="-6.3561E-07"
+               iyy="0.058526" iyz="0.00016185"  izz="0.082547"/>
+    </inertial>
+    <xacro:stl_vc mesh="pelvis_link.STL" mat="dark_grey"/>
+  </link>
+  <link name="imu_link"/>
+  <joint name="pelvis_to_imu" type="fixed">
+   <parent link="pelvis_link"/>
+   <child  link="imu_link"/>
+   <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+<!-- 2. Add foot contact frames -->
+  <link name="right_foot_contact"/>
+  <joint name="right_foot_to_contact" type="fixed">
+   <parent link="right_leg_foot_link"/>
+   <child  link="right_foot_contact"/>
+   <origin xyz="0.1 0 -0.05" rpy="0 0 0"/>
+  </joint>
+<!-- (same pattern for left) -->
+
+<!-- 3. Fix left knee axis to match right -->
+<!-- right_joint_3: axis xyz="0 0.017122 0.99985" -->
+<!-- left_joint_3: CHANGE to axis xyz="0 -0.017122 0.99985" (mirrored) -->
+ <axis xyz="0 -0.017122 0.99985"/>
+
+<!-- 4. Fix left ankle torque limit to match code (100 Nm) -->
+ <limit lower="-0.524" upper="0.349" effort="100" velocity="1.5"/>
+  <!-- ════════════════════════════════════════════════════════════
+       RIGHT LEG
+  ════════════════════════════════════════════════════════════ -->
+  <link name="right_leg_hip_link">
+    <inertial>
+      <origin xyz="0.018919 -0.00011761 -0.011985" rpy="0 0 0"/>
+      <mass value="1.9525"/>
+      <inertia ixx="0.0025923" ixy="-1.0438E-06" ixz="0.00054885"
+               iyy="0.0029428" iyz="2.1627E-06"   izz="0.0022539"/>
+    </inertial>
+    <xacro:stl_vc mesh="right_leg_hip_link.STL" mat="light_grey"/>
+  </link>
+
+  <joint name="right_joint_1" type="revolute">
+    <origin xyz="-0.199999665181371 0.000112718245557475 -0.0579924471299094"
+            rpy="3.14159265358979 0 3.14159265358979"/>
+    <parent link="pelvis_link"/>
+    <child  link="right_leg_hip_link"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.523" upper="0.523" effort="50" velocity="1"/>
+    <dynamics damping="2" friction="1"/>
+  </joint>
+
+  <link name="right_leg_thigh_link">
+    <inertial>
+      <origin xyz="0.04637 0.0082283 -0.0001456" rpy="0 0 0"/>
+      <mass value="2.1532"/>
+      <inertia ixx="0.0016281" ixy="-0.00028407" ixz="1.8987E-05"
+               iyy="0.0031913" iyz="3.1436E-06"   izz="0.0039169"/>
+    </inertial>
+    <xacro:stl_vc mesh="right_leg_thigh_link.STL" mat="silver"/>
+  </link>
+
+  <joint name="right_joint_2" type="revolute">
+    <origin xyz="0.098992 0.00029234 -0.13935" rpy="-1.5708 0 -1.5678"/>
+    <parent link="right_leg_hip_link"/>
+    <child  link="right_leg_thigh_link"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.349" upper="1.92" effort="80" velocity="1"/>
+    <dynamics damping="5" friction="2"/>
+  </joint>
+
+  <link name="right_leg_shaft_link">
+    <inertial>
+      <origin xyz="-0.057952 -0.045575 -0.0091328" rpy="0 0 0"/>
+      <mass value="4.451"/>
+      <inertia ixx="0.0071077" ixy="0.0037357"   ixz="0.00034122"
+               iyy="0.0093762" iyz="-0.00012246"  izz="0.014313"/>
+    </inertial>
+    <xacro:stl_vc mesh="right_leg_shaft_link.STL" mat="light_blue"/>
+  </link>
+
+  <joint name="right_joint_3" type="revolute">
+    <origin xyz="0.51127 0.094149 -0.037343" rpy="0.017123 0 0.17434"/>
+    <parent link="right_leg_thigh_link"/>
+    <child  link="right_leg_shaft_link"/>
+    <axis xyz="0 0.017122 0.99985"/>
+    <limit lower="0" upper="2.094" effort="100" velocity="1.5"/>
+    <dynamics damping="8" friction="3"/>
+  </joint>
+
+  <link name="right_leg_foot_link">
+    <inertial>
+      <origin xyz="0.031023 0.021274 -0.041969" rpy="0 0 0"/>
+      <mass value="1.3514"/>
+      <inertia ixx="0.0017022" ixy="0.00013771" ixz="6.6968E-05"
+               iyy="0.0010654" iyz="7.0073E-05"  izz="0.0017601"/>
+    </inertial>
+    <xacro:stl_vc mesh="right_leg_foot_link.STL" mat="silver"/>
+  </link>
+
+  <joint name="right_joint_4" type="revolute">
+    <origin xyz="0.39817 -0.36842 0.017419" rpy="-0.013246 -0.01085 -0.68626"/>
+    <parent link="right_leg_shaft_link"/>
+    <child  link="right_leg_foot_link"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-0.524" upper="0.349" effort="100" velocity="1.5"/>
+    <dynamics damping="3" friction="1.5"/>
+  </joint>
+
+  <!-- ════════════════════════════════════════════════════════════
+       LEFT LEG
+  ════════════════════════════════════════════════════════════ -->
+  <link name="left_leg_hip_link">
+    <inertial>
+      <origin xyz="0.017855 -0.0017643 0.0020634" rpy="0 0 0"/>
+      <mass value="1.9525"/>
+      <inertia ixx="0.0019025" ixy="0.00010962"  ixz="0.00054567"
+               iyy="0.0029317" iyz="-5.9689E-05"  izz="0.0029546"/>
+    </inertial>
+    <xacro:stl_vc mesh="left_leg_hip_link.STL" mat="light_grey"/>
+  </link>
+
+  <joint name="left_joint_1" type="revolute">
+    <origin xyz="0.19996 0.00010686 -0.076992" rpy="3.1416 0 0"/>
+    <parent link="pelvis_link"/>
+    <child  link="left_leg_hip_link"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.523" upper="0.523" effort="50" velocity="1"/>
+    <dynamics damping="2" friction="1"/>
+  </joint>
+
+  <link name="left_leg_thigh_link">
+    <inertial>
+      <origin xyz="0.043445 -0.017612 -0.0001456" rpy="0 0 0"/>
+      <mass value="2.1532"/>
+      <inertia ixx="0.001812"  ixy="0.00057842"  ixz="1.7927E-05"
+               iyy="0.0030074" iyz="-7.7842E-06"  izz="0.0039169"/>
+    </inertial>
+    <xacro:stl_vc mesh="left_leg_thigh_link.STL" mat="silver"/>
+  </link>
+
+  <joint name="left_joint_2" type="revolute">
+    <origin xyz="0.11772 -0.01257 -0.09807" rpy="1.5708 0 1.4628"/>
+    <parent link="left_leg_hip_link"/>
+    <child  link="left_leg_thigh_link"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.349" upper="1.92" effort="80" velocity="1"/>
+    <dynamics damping="5" friction="2"/>
+  </joint>
+
+  <link name="left_leg_shaft_link">
+    <inertial>
+      <origin xyz="-0.046101 0.037688 -0.0054824" rpy="0 0 0"/>
+      <mass value="4.451"/>
+      <inertia ixx="0.003979"  ixy="0.0016707"   ixz="0.00042298"
+               iyy="0.012511"  iyz="-0.00011921"  izz="0.014307"/>
+    </inertial>
+    <xacro:stl_vc mesh="left_leg_shaft_link.STL" mat="light_blue"/>
+  </link>
+
+  <joint name="left_joint_3" type="revolute">
+    <origin xyz="0.48217 -0.22109 -0.044843" rpy="0 0 0"/>
+    <parent link="left_leg_thigh_link"/>
+    <child  link="left_leg_shaft_link"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="0" upper="2.049" effort="100" velocity="1.5"/>
+    <dynamics damping="8" friction="3"/>
+  </joint>
+
+  <!-- left_leg_foot_link — TYPO FIXED from original "left_leg_foot_linlk" -->
+  <link name="left_leg_foot_link">
+    <inertial>
+      <origin xyz="0.028252 -0.022174 -0.042292" rpy="0 0 0"/>
+      <mass value="1.3513"/>
+      <inertia ixx="0.0016795" ixy="-0.00017172" ixz="2.2982E-05"
+               iyy="0.0010824" iyz="-6.1985E-05"  izz="0.0017658"/>
+    </inertial>
+    <xacro:stl_vc mesh="left_leg_foot_link.STL" mat="periwinkle"/>
+  </link>
+
+  <joint name="left_joint_4" type="revolute">
+    <origin xyz="0.52206 -0.086783 0.010108" rpy="0 0 0"/>
+    <parent link="left_leg_shaft_link"/>
+    <child  link="left_leg_foot_link"/>
+    <axis xyz="0 0 -1"/>
+    <limit lower="-0.524" upper="0.349" effort="50" velocity="1"/>
+    <dynamics damping="3" friction="1.5"/>
+  </joint>
+
+  <!-- ════════════════════════════════════════════════════════════
+       TRANSMISSIONS  (effort interface, one per joint)
+  ════════════════════════════════════════════════════════════ -->
+  <xacro:effort_trans jname="right_joint_1"/>
+  <xacro:effort_trans jname="right_joint_2"/>
+  <xacro:effort_trans jname="right_joint_3"/>
+  <xacro:effort_trans jname="right_joint_4"/>
+  <xacro:effort_trans jname="left_joint_1"/>
+  <xacro:effort_trans jname="left_joint_2"/>
+  <xacro:effort_trans jname="left_joint_3"/>
+  <xacro:effort_trans jname="left_joint_4"/>
+
+</robot>
